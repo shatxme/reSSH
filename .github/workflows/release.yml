@@ -1,0 +1,92 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Create or update GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release edit "$GITHUB_REF_NAME" --title "reSSH ${GITHUB_REF_NAME}"
+          else
+            gh release create "$GITHUB_REF_NAME" --title "reSSH ${GITHUB_REF_NAME}" --generate-notes
+          fi
+
+  build-release:
+    needs: create-release
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            archive: tar.gz
+          - goos: linux
+            goarch: arm64
+            archive: tar.gz
+          - goos: darwin
+            goarch: amd64
+            archive: tar.gz
+          - goos: darwin
+            goarch: arm64
+            archive: tar.gz
+          - goos: windows
+            goarch: amd64
+            archive: zip
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Build archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          name="ressh_${{ matrix.goos }}_${{ matrix.goarch }}"
+          ext=""
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            ext=".exe"
+          fi
+
+          GOOS="${{ matrix.goos }}" GOARCH="${{ matrix.goarch }}" CGO_ENABLED=0 \
+            go build -trimpath -ldflags="-s -w -X main.version=${GITHUB_REF_NAME}" \
+            -o "dist/${name}/ressh${ext}" ./cmd/ressh
+
+          cp README.md LICENSE install.sh "dist/${name}/"
+
+          if [ "${{ matrix.archive }}" = "zip" ]; then
+            (cd dist && zip -qr "${name}.zip" "${name}")
+          else
+            tar -C dist -czf "dist/${name}.tar.gz" "${name}"
+          fi
+
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ matrix.archive }}" = "zip" ]; then
+            gh release upload "$GITHUB_REF_NAME" "dist/ressh_${{ matrix.goos }}_${{ matrix.goarch }}.zip" --clobber
+          else
+            gh release upload "$GITHUB_REF_NAME" "dist/ressh_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz" --clobber
+          fi
