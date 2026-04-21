@@ -20,7 +20,3 @@ wget -qO- https://github.com/shatxme/reSSH/raw/main/install.sh | bash
 | `ressh logs` | Show daemon logs |
 | `ressh vps-setup --host <ip> --user root --password <password>` | Set up a VPS, create a key, and add a `ressh-*` SSH host entry |
 | `ressh version` | Show the installed version |
-
-## License
-
-MIT
