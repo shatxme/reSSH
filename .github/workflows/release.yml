@@ -85,6 +85,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          for _ in 1 2 3 4 5 6 7 8 9 10; do
+            if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+              break
+            fi
+            sleep 2
+          done
           if [ "${{ matrix.archive }}" = "zip" ]; then
             gh release upload "$GITHUB_REF_NAME" "dist/ressh_${{ matrix.goos }}_${{ matrix.goarch }}.zip" --clobber
           else
